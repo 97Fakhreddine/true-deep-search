@@ -1,6 +1,8 @@
 package app
 
 import (
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"hybridsearch/internal/infra/browser"
@@ -13,10 +15,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.state.Width = msg.Width
 		m.state.Height = msg.Height
+		return m, nil
 
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "esc", "ctrl+q":
+		case "ctrl+c", "esc":
 			return m, tea.Quit
 
 		case "up", "k":
@@ -31,29 +34,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 
-		case "enter":
-			if len(m.state.Results) > 0 && m.state.SelectedIndex >= 0 && m.state.SelectedIndex < len(m.state.Results) {
+		case "ctrl+o":
+			if len(m.state.Results) > 0 &&
+				m.state.SelectedIndex >= 0 &&
+				m.state.SelectedIndex < len(m.state.Results) {
 				selected := m.state.Results[m.state.SelectedIndex]
 				_ = browser.Open(selected.Target)
 			}
 			return m, nil
+
+		case "enter":
+			query := strings.TrimSpace(m.input.Value())
+			if query == "" {
+				return m, nil
+			}
+
+			m.state.Query = query
+			m.state.Loading = true
+			m.state.HasSearched = true
+			m.state.Error = ""
+			m.lastIssuedQuery = query
+
+			return m, runSearchCmd(m.orch, query)
 		}
-	}
-
-	m.input, cmd = m.input.Update(msg)
-	m.state.Query = m.input.Value()
-
-	switch msg := msg.(type) {
-	case debounceMsg:
-		if msg.Query == "" || msg.Query != m.input.Value() {
-			return m, nil
-		}
-
-		m.state.Loading = true
-		m.state.HasSearched = true
-		m.lastIssuedQuery = msg.Query
-
-		return m, runSearchCmd(m.orch, msg.Query)
 
 	case SearchFinishedMsg:
 		if msg.Query != m.lastIssuedQuery {
@@ -75,8 +78,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	return m, tea.Batch(
-		cmd,
-		debounceSearchCmd(m.input.Value()),
-	)
+	m.input, cmd = m.input.Update(msg)
+	return m, cmd
 }
