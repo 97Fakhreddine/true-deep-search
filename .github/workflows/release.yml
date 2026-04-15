@@ -1,0 +1,29 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Build binary
+        run: |
+          go build -o true-deep-search ./cmd/hybridsearch
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: true-deep-search
+          path: true-deep-search

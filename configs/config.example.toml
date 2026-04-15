@@ -1,0 +1,17 @@
+[app]
+result_limit = 20
+debounce_ms = 250
+
+[providers]
+enabled = ["local"]
+
+[providers.web]
+timeout_ms = 1200
+
+[index]
+path = "./data/index.bleve"
+watch = false
+roots = [
+  "./docs",
+  "./notes"
+]
