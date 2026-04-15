@@ -33,9 +33,10 @@ func Render(state ViewState, input textinput.Model) string {
 	content := lipgloss.JoinVertical(
 		lipgloss.Center,
 		header,
-		searchBox,
 		"",
+		searchBox,
 		resultsBox,
+		"",
 		keysBar,
 	)
 
@@ -58,23 +59,14 @@ func renderHeader(styles Styles, width int) string {
    ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚══════╝    ╚═════╝ ╚══════╝╚══════╝╚═╝     
 `
 
-	subtitle := "True Deep Search"
+	subtitle := "True Deep Search • Made in Tunisia"
 
 	block := lipgloss.JoinVertical(
 		lipgloss.Center,
-
-		// flag
 		styles.LogoSubtitle.Render(flag),
-
-		// spacing
 		"",
-
-		// logo
 		styles.LogoTitle.Render(strings.TrimRight(title, "\n")),
-
-		// spacing
-		"",
-		styles.LogoSubtitle.Render(subtitle+" • Made in Tunisia"),
+		styles.LogoSubtitle.Render(subtitle),
 	)
 
 	return lipgloss.PlaceHorizontal(
@@ -96,10 +88,11 @@ func renderSearchBox(styles Styles, input textinput.Model, width int) string {
 }
 
 func renderResultsBox(styles Styles, state ViewState) string {
-	body := buildResultsBody(styles, state)
-
 	boxWidth := clamp(state.Width-12, 60, 140)
-	boxHeight := clamp(state.Height-22, 10, 30)
+	boxHeight := clamp(state.Height-28, 10, 22)
+
+	innerWidth := max(20, boxWidth-4)
+	body := buildResultsBody(styles, state, innerWidth, boxHeight)
 
 	box := styles.ResultsBox.
 		Width(boxWidth).
@@ -115,8 +108,9 @@ func renderResultsBox(styles Styles, state ViewState) string {
 
 func renderKeysBar(styles Styles, keys KeyMap, width int) string {
 	content := fmt.Sprintf(
-		"%s navigate • %s open • %s close • %s quit",
+		"%s navigate • %s search • %s open • %s close • %s quit",
 		keys.Up+"/"+keys.Down,
+		keys.Search,
 		keys.Open,
 		keys.Close,
 		keys.Quit,
@@ -131,43 +125,43 @@ func renderKeysBar(styles Styles, keys KeyMap, width int) string {
 	)
 }
 
-func buildResultsBody(styles Styles, state ViewState) string {
+func buildResultsBody(styles Styles, state ViewState, innerWidth int, boxHeight int) string {
 	if state.Error != "" {
-		return styles.Error.Render("Error: " + state.Error)
+		return styles.Error.Width(innerWidth).Render("Error: " + state.Error)
 	}
 
 	if state.Loading && len(state.Results) == 0 {
-		return styles.Status.Render("Searching...")
+		return styles.Status.Width(innerWidth).Render("Searching...")
 	}
 
 	if len(state.Results) == 0 {
 		if strings.TrimSpace(state.Query) == "" {
-			return styles.Empty.Render("Start typing to search...")
+			return styles.Empty.Width(innerWidth).Render("Search across web, code, videos and communities...")
 		}
-		return styles.Empty.Render("No results found.")
+		return styles.Empty.Width(innerWidth).Render("No results found.")
 	}
 
-	visibleCount := computeVisibleItemCount(state.Height)
+	visibleCount := computeVisibleItemCount(boxHeight)
 	start, end := computeWindow(len(state.Results), state.SelectedIndex, visibleCount)
 
 	lines := make([]string, 0, end-start+2)
 
 	if start > 0 {
-		lines = append(lines, styles.Status.Render("↑ more results above"))
+		lines = append(lines, styles.Status.Width(innerWidth).Render("↑ more results above"))
 	}
 
 	for i := start; i < end; i++ {
-		lines = append(lines, renderResultItem(styles, state.Results[i], i == state.SelectedIndex))
+		lines = append(lines, renderResultItem(styles, state.Results[i], i == state.SelectedIndex, innerWidth))
 	}
 
 	if end < len(state.Results) {
-		lines = append(lines, styles.Status.Render("↓ more results below"))
+		lines = append(lines, styles.Status.Width(innerWidth).Render("↓ more results below"))
 	}
 
 	return strings.Join(lines, "\n")
 }
 
-func renderResultItem(styles Styles, result search.SearchResult, selected bool) string {
+func renderResultItem(styles Styles, result search.SearchResult, selected bool, width int) string {
 	title := strings.TrimSpace(result.Title)
 	if title == "" {
 		title = "(untitled)"
@@ -183,40 +177,67 @@ func renderResultItem(styles Styles, result search.SearchResult, selected bool) 
 		snippet = "No description available."
 	}
 
-	meta := fmt.Sprintf("[%s] %s", strings.ToUpper(result.Source), target)
+	title = truncate(title, max(20, width-12))
+	snippet = truncate(snippet, max(30, width-12))
+	target = truncate(target, max(30, width-22))
 
-	item := lipgloss.JoinVertical(
+	badge := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#000000")).
+		Background(lipgloss.Color("#A855F7")).
+		Padding(0, 1).
+		Render(strings.ToUpper(result.Source))
+
+	meta := badge + " " + target
+
+	content := lipgloss.JoinVertical(
 		lipgloss.Left,
-		styles.Title.Render(title),
-		styles.Snippet.Render(snippet),
-		styles.Meta.Render(meta),
+		styles.Title.Width(width-8).Render(title),
+		styles.Snippet.Width(width-8).Render(snippet),
+		lipgloss.NewStyle().Width(width-8).Render(meta),
 	)
 
-	item = styles.ResultItem.Render(item)
+	cardWidth := max(20, width-2)
+
+	cardStyle := lipgloss.NewStyle().
+		Width(cardWidth).
+		Border(lipgloss.NormalBorder()).
+		Padding(0, 1).
+		MarginBottom(1)
 
 	if selected {
-		return styles.SelectedItem.Render(
-			styles.SelectedMarker.Render("› ") + indentLines(item, "  "),
-		)
+		cardStyle = cardStyle.
+			BorderForeground(lipgloss.Color("#A855F7"))
 	}
 
-	return "  " + indentLines(item, "  ")
-}
+	card := cardStyle.Render(content)
 
-func indentLines(s, prefix string) string {
-	parts := strings.Split(s, "\n")
-	for i := range parts {
-		if i == 0 {
-			continue
-		}
-		parts[i] = prefix + parts[i]
+	if selected {
+		marker := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#A855F7")).
+			Bold(true).
+			Render("▌ ")
+		return marker + card
 	}
-	return strings.Join(parts, "\n")
+
+	return "  " + card
 }
 
-func computeVisibleItemCount(height int) int {
-	count := (height - 24) / 4
-	return clamp(count, 3, 8)
+func truncate(s string, maxLen int) string {
+	s = strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "\n", " "), "\r", " "))
+	s = strings.Join(strings.Fields(s), " ")
+
+	if maxLen <= 0 || len(s) <= maxLen {
+		return s
+	}
+	if maxLen <= 3 {
+		return s[:maxLen]
+	}
+	return s[:maxLen-3] + "..."
+}
+
+func computeVisibleItemCount(boxHeight int) int {
+	count := (boxHeight - 2) / 5
+	return clamp(count, 2, 6)
 }
 
 func computeWindow(total, selected, visible int) (int, int) {
@@ -251,4 +272,11 @@ func computeWindow(total, selected, visible int) (int, int) {
 	}
 
 	return start, end
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
