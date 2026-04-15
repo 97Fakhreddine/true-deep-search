@@ -1,4 +1,3 @@
-// Replace file: internal/tui/view.go
 package tui
 
 import (
