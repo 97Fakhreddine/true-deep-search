@@ -10,9 +10,18 @@ func (m Model) View() string {
 			SelectedIndex: m.state.SelectedIndex,
 			Loading:       m.state.Loading,
 			Error:         m.state.Error,
-			Width:         m.state.Width,
-			Height:        m.state.Height,
-			HasSearched:   m.state.HasSearched,
+
+			AIAnswer:  m.state.AIAnswer,
+			AILoading: m.state.AILoading,
+			AIError:   m.state.AIError,
+
+			Width:       m.state.Width,
+			Height:      m.state.Height,
+			HasSearched: m.state.HasSearched,
+
+			// viewport-rendered content
+			ResultsContent: m.resultsViewport.View(),
+			AIContent:      m.aiViewport.View(),
 		},
 		m.input,
 	)
